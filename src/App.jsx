@@ -1,17 +1,29 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+//import { Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom';
+import Home from './pages/Home.jsx'
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <h1 className='text-3xl font-bold text-red-500 underline text-center'>
-        Pet Health
-        </h1>
-    </>
+/**
+  const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route path='/' element={<Header />}>
+      <Route index element={<Home />} />
+    </Route>
   )
+)
+*/
+
+function App({routes}) {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+      </Routes>
+    </Router>
+    //<>
+      //<RouterProvider router={router} />
+    //</>
+  );
 }
 
-export default App
+export default App;
