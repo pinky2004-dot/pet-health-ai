@@ -1,12 +1,12 @@
 import React from "react";
-import Navbar from "../components/Navbar";
 
 const Home = () => {
     return(
         <div>
-            <Navbar />
-            <h1 className="text-3xl font-bold text-center mt-6">
-                This is the home page!
+            <h1 className="mb-4 text-2xl font-extrabold text-gray-800 dark:text-white md:text-5xl lg:text-3xl"> 
+                <span className="text-transparent bg-clip-text bg-gradient-to-r to-emerald-600 from-sky-400">
+                    Welcome to Pet Health AI  
+                </span> - Your AI-Powered Pet Companion!
             </h1>
         </div>
     );
