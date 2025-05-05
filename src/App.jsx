@@ -5,6 +5,7 @@ import Home from './pages/Home.jsx'
 import About from './pages/About.jsx';
 import Contact from './pages/Contact.jsx';
 import Chat from './pages/Chat.jsx';
+import Emergency from './pages/Emergency.jsx';
 
 /**
   const router = createBrowserRouter(
@@ -22,6 +23,7 @@ function App({routes}) {
       <Routes>
         <Route path="/" element={<MainLayout><Home /></MainLayout>} />
         <Route path='/chat' element={<MainLayout><Chat /></MainLayout>} />
+        <Route path='/emergency' element={<MainLayout><Emergency /></MainLayout>} />
         <Route path="/about" element={<MainLayout><About /></MainLayout>} />
         <Route path="/contact" element={<MainLayout><Contact /></MainLayout>} />
       </Routes>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { Send, X, Loader, PawPrint } from "lucide-react";
 
 function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -9,10 +10,15 @@ function Navbar() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     {/* Left side */}
-                    <div className="flex items-center">
+                    {/* <div className="flex items-center">
                         <div className="flex-shrink-0">
                             <img className="h-8 w-8" src="#" alt="Logo" />
+                            <PawPrint className="h-4 w-4 mr-1 text-blue-500" />
                         </div>
+                    </div> */}
+                    <div className="flex items-center">
+                        <PawPrint className="h-8 w-8 text-blue-500" />
+                        <span className="ml-2 text-xl font-semibold text-blue-500">PetHealth AI</span>
                     </div>
 
                     {/* Desktop Menu */}
@@ -23,6 +29,9 @@ function Navbar() {
                             </Link>
                             <Link to="/chat" className="hover:bg-gray-700 text-white px-3 py-2 rounded-md text-sm font-medium">
                                 Chat
+                            </Link>
+                            <Link to="/emergency" className="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                Emergency
                             </Link>
                             <Link to="/about" className="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                                 About

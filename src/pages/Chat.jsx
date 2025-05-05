@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Send, X, Loader, PawPrint } from "lucide-react";
 
 function Chat() {
-  const [messages, setMessages] = useState([{ id: 1, text: "Hello! I'm your PetHealth AI assistant. How can I help you today?", sender: "ai" }]);
+  const [messages, setMessages] = useState([
+    { id: 1, text: "Hello! I'm PetHealth AI. How can I help you and your pet today?", sender: "ai" }
+  ]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -16,7 +19,7 @@ function Chat() {
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     
     if (inputValue.trim() === "") return;
     
@@ -35,7 +38,7 @@ function Chat() {
     setTimeout(() => {
       const aiResponse = {
         id: Date.now() + 1,
-        text: "I understand you need assistance. This is a simulated response from PetHealth AI. When connected to an actual LLM API, you'll get real helpful responses about pet health here.",
+        text: "I understand you need assistance. However, this is a simulated response. Connect to an actual LLM API for real responses.",
         sender: "ai"
       };
       setMessages(prevMessages => [...prevMessages, aiResponse]);
@@ -43,42 +46,60 @@ function Chat() {
     }, 1500);
   };
 
+  // Function to clear chat - reset to initial state
+  const clearChat = () => {
+    setMessages([
+      { id: Date.now(), text: "Hello! I'm PetHealth AI. How can I help you and your pet today?", sender: "ai" }
+    ]);
+  };
+
+  // Function to format code blocks if needed
+  const formatMessage = (text) => {
+    return text;
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      <div className="flex-1 p-4 overflow-auto">
+    <div className="flex flex-col h-screen bg-gray-50">      
+      {/* Messages Area */}
+      <div className="flex-1 p-4 overflow-y-auto">
         <div className="max-w-3xl mx-auto">
           <div className="space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-gray-500 mt-10">
-                <p className="text-xl font-semibold">Tell us what happened</p>
-                <p className="mt-2">Type a message below to begin chatting</p>
-              </div>
-            ) : (
-              messages.map((message) => (
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+              >
                 <div
-                  key={message.id}
-                  className={`flex ${
-                    message.sender === "user" ? "justify-end" : "justify-start"
+                  className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg ${
+                    message.sender === "user"
+                      ? "bg-blue-600 text-white rounded-br-none"
+                      : "bg-white text-gray-800 border border-gray-200 rounded-bl-none shadow-sm"
                   }`}
                 >
-                  <div
-                    className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-2 rounded-lg ${
-                      message.sender === "user"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200 text-gray-800"
-                    }`}
-                  >
-                    {message.text}
-                  </div>
+                  {message.sender === "ai" && (
+                    <div className="flex items-center mb-1">
+                      <PawPrint className="h-4 w-4 mr-1 text-blue-500" />
+                      <span className="text-xs font-semibold text-blue-600">PetHealth AI</span>
+                    </div>
+                  )}
+                  {formatMessage(message.text)}
                 </div>
-              ))
-            )}
+              </div>
+            ))}
+            
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+                <div className="bg-white text-gray-800 border border-gray-200 p-3 rounded-lg rounded-bl-none shadow-sm">
+                  <div className="flex flex-col">
+                  <div className="flex items-center mb-1">
+                    <PawPrint className="h-4 w-4 mr-1 text-blue-500" />
+                    <span className="text-xs font-semibold text-blue-600">PetHealth AI</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Loader size={16} className="animate-spin text-gray-400" />
+                    <span className="text-gray-500">Thinking...</span>
+                  </div>
+                </div>
                 </div>
               </div>
             )}
@@ -87,25 +108,29 @@ function Chat() {
         </div>
       </div>
       
+      {/* Input Area */}
       <div className="border-t border-gray-200 p-4 bg-white">
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="flex items-center">
+          <form onSubmit={handleSubmit} className="flex items-center space-x-2">
             <input
               type="text"
               value={inputValue}
               onChange={handleInputChange}
               placeholder="Ask about your pet's health..."
-              className="flex-1 border border-gray-300 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
             />
             <button
               type="submit"
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-300"
+              className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg flex items-center justify-center disabled:bg-blue-300"
               disabled={isLoading || inputValue.trim() === ""}
             >
-              Send
+              <Send size={20} />
             </button>
           </form>
+          <div className="text-xs text-gray-500 mt-2 text-center">
+          Note: This is an AI assistant for general pet health guidance. For emergencies or serious conditions, please contact a veterinarian immediately.
+          </div>
         </div>
       </div>
     </div>
