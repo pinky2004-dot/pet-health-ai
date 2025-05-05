@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
 function Chat() {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([{ id: 1, text: "Hello! I'm your PetHealth AI assistant. How can I help you today?", sender: "ai" }]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -35,12 +35,12 @@ function Chat() {
     setTimeout(() => {
       const aiResponse = {
         id: Date.now() + 1,
-        text: "This is a simulated response. Connect to an actual LLM API for real responses.",
+        text: "I understand you need assistance. This is a simulated response from PetHealth AI. When connected to an actual LLM API, you'll get real helpful responses about pet health here.",
         sender: "ai"
       };
       setMessages(prevMessages => [...prevMessages, aiResponse]);
       setIsLoading(false);
-    }, 1000);
+    }, 1500);
   };
 
   return (
