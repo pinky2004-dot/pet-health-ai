@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, X, Loader, PawPrint } from "lucide-react";
+import { Send, Loader, PawPrint } from "lucide-react";
 
 function Chat() {
   const [messages, setMessages] = useState([
@@ -34,16 +34,42 @@ function Chat() {
     setInputValue("");
     setIsLoading(true);
     
-    // Simulate AI response (would be replaced with actual API call)
-    setTimeout(() => {
-      const aiResponse = {
-        id: Date.now() + 1,
-        text: "I understand you need assistance. However, this is a simulated response. Connect to an actual LLM API for real responses.",
-        sender: "ai"
-      };
-      setMessages(prevMessages => [...prevMessages, aiResponse]);
-      setIsLoading(false);
-    }, 1500);
+    // Call backend API
+    fetch('http://localhost:5000/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message: userMessage.text }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        const aiResponse = {
+          id: Date.now() + 1,
+          text: data.response,
+          sender: "ai"
+        };
+        setMessages(prevMessages => [...prevMessages, aiResponse]);
+      })
+      .catch(error => {
+        console.error('Error fetching AI response:', error);
+        // Add error message
+        const errorResponse = {
+          id: Date.now() + 1,
+          text: "Sorry, I encountered an error. Please try again later.",
+          sender: "ai"
+        };
+        setMessages(prevMessages => [...prevMessages, errorResponse]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
   };
 
   // Function to clear chat - reset to initial state
@@ -116,7 +142,7 @@ function Chat() {
               type="text"
               value={inputValue}
               onChange={handleInputChange}
-              placeholder="Ask about your pet's health..."
+              placeholder="Type your message..."
               className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
             />
@@ -129,12 +155,11 @@ function Chat() {
             </button>
           </form>
           <div className="text-xs text-gray-500 mt-2 text-center">
-          Note: This is an AI assistant for general pet health guidance. For emergencies or serious conditions, please contact a veterinarian immediately.
+            Press Enter to send your message
           </div>
         </div>
       </div>
     </div>
   );
-}
 
 export default Chat;
