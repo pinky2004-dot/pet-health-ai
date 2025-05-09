@@ -70,7 +70,6 @@ function Chat() {
         setIsLoading(false);
       });
   };
-  };
 
   // Function to clear chat - reset to initial state
   const clearChat = () => {
@@ -155,11 +154,12 @@ function Chat() {
             </button>
           </form>
           <div className="text-xs text-gray-500 mt-2 text-center">
-            Press Enter to send your message
+          Note: This is an AI assistant for general pet health guidance. For emergencies or serious conditions, please contact a veterinarian immediately.
           </div>
         </div>
       </div>
     </div>
   );
+}
 
 export default Chat;
