@@ -9,7 +9,7 @@ def main():
     
     # Parse arguments
     parser = argparse.ArgumentParser(description='Index PDF documents for RAG')
-    parser.add_argument('--directory', '-d', type=str, default='pdfs',
+    parser.add_argument('--directory', '-d', type=str, default='../pdfs',
                         help='Directory containing PDF files (default: pdfs)')
     args = parser.parse_args()
     
