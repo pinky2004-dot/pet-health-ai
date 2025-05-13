@@ -18,8 +18,8 @@ class EmbeddingManager:
         
         # We'll use text-embedding-3-small which has 1536 dimensions
         # but we'll adapt it to work with the 2048-dimension index
-        self.embedding_model = "text-embedding-3-small" 
-        self.pinecone_dimension = 2048  # Your Pinecone index dimension
+        self.embedding_model = "text-embedding-3-large"
+        self.pinecone_dimension = 3072  # Your Pinecone index dimension
         
         # Initialize Pinecone with new client pattern
         self.pc = Pinecone(
