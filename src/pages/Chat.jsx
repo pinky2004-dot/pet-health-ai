@@ -141,7 +141,7 @@ function Chat() {
               type="text"
               value={inputValue}
               onChange={handleInputChange}
-              placeholder="Type your message..."
+              placeholder="Ask about your pet's health..."
               className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}
             />
