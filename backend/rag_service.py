@@ -15,7 +15,8 @@ class RAGService:
         self.embedding_manager = EmbeddingManager()
         self.pdf_processor = PDFProcessor()
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+        print(f"Using OpenAI model: {self.model}")
     
     def index_documents(self, pdf_directory):
         """
