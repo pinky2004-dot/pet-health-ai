@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_compress import Compress
 import os
 from dotenv import load_dotenv
 from rag_service import RAGService
@@ -9,6 +10,7 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+Compress(app) # Enable gzip compression
 
 # Initialize RAG service
 rag_service = RAGService()
