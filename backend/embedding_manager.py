@@ -1,9 +1,15 @@
+#logging
+import logging
+
 import os
 import time
 from openai import OpenAI
 import numpy as np
 from dotenv import load_dotenv
 from pinecone import Pinecone
+
+# Get a logger for this module
+logger = logging.getLogger(__name__) # Logger name will be 'embedding_manager'
 
 # Load environment variables
 load_dotenv()
@@ -16,25 +22,27 @@ class EmbeddingManager:
         # Initialize OpenAI client
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
-        # We'll use text-embedding-3-small which has 1536 dimensions
-        # but we'll adapt it to work with the 2048-dimension index
         self.embedding_model = "text-embedding-3-large"
-        self.pinecone_dimension = 3072  # Your Pinecone index dimension
+        self.pinecone_dimension = 3072  # Pinecone index dimension
+        logger.debug(f"EmbeddingManager configured: OpenAI model='{self.embedding_model}', Pinecone dimension={self.pinecone_dimension}.")
         
         # Initialize Pinecone with new client pattern
+        logger.debug("Initializing Pinecone client for EmbeddingManager...")
         self.pc = Pinecone(
             api_key=os.getenv("PINECONE_API_KEY")
         )
+        logger.info("Pinecone client initialized for EmbeddingManager.")
         
         # Get index
         index_name = os.getenv("PINECONE_INDEX_NAME", "pet-health-rag")
+        logger.info(f"EmbeddingManager attempting to connect to Pinecone index: '{index_name}'.")
         
         # Connect to the existing index
         try:
             self.index = self.pc.Index(index_name)
-            print(f"Connected to Pinecone index: {index_name}")
+            logger.info(f"Successfully connected to Pinecone index '{index_name}'.")
         except Exception as e:
-            print(f"Error connecting to Pinecone index: {str(e)}")
+            logger.error(f"Error connecting to Pinecone index '{index_name}' in EmbeddingManager: {e}", exc_info=True)
             raise
     
     def create_embedding(self, text):
@@ -48,15 +56,20 @@ class EmbeddingManager:
         Returns:
             Embedding vector adapted to Pinecone dimensions
         """
+        text_snippet = (text[:75] + "...") if len(text) > 75 else text
+        logger.debug(f"Creating OpenAI embedding using model '{self.embedding_model}' for text snippet: '{text_snippet}'")
         response = self.openai_client.embeddings.create(
             model=self.embedding_model,
             input=text
         )
         
         embedding = response.data[0].embedding
+        logger.debug(f"Successfully created embedding of dimension {len(embedding)} for text snippet: '{text_snippet}'.")
         
         # Adapt the embedding to match Pinecone index dimensions
         adapted_embedding = self._adapt_embedding_dimension(embedding, self.pinecone_dimension)
+        if len(adapted_embedding) != self.pinecone_dimension:
+            logger.warning(f"Adapted embedding dimension {len(adapted_embedding)} does not match target {self.pinecone_dimension} for text snippet: '{text_snippet}'.")
         
         return adapted_embedding
     
@@ -77,12 +90,18 @@ class EmbeddingManager:
         if current_dim == target_dim:
             return embedding
         
-        # If current dimension is larger, truncate
-        elif current_dim > target_dim:
-            return embedding[:target_dim]
+        logger.warning(
+            f"Adapting embedding dimension from {current_dim} to {target_dim}. "
+            "This indicates a mismatch between embedding model output and Pinecone index dimension. "
+            "Ensure they are aligned for optimal performance."
+        )
         
-        # If current dimension is smaller, pad with zeros
-        else:
+        # If current dimension is larger, truncate
+        if current_dim > target_dim:
+            logger.debug(f"Truncating embedding from {current_dim} to {target_dim}.")
+            return embedding[:target_dim]
+        else: # If current dimension is smaller, pad with zeros
+            logger.debug(f"Padding embedding from {current_dim} to {target_dim} with zeros.")
             return embedding + [0.0] * (target_dim - current_dim)
     
     def upsert_documents(self, documents):
@@ -95,6 +114,11 @@ class EmbeddingManager:
         Returns:
             Number of vectors inserted
         """
+        if not documents:
+            logger.warning("upsert_documents called with an empty list of documents.")
+            return 0
+            
+        logger.info(f"Starting to upsert {len(documents)} Langchain Document objects to Pinecone.")
         batch_size = 100  # Pinecone recommended batch size
         vectors = []
         
@@ -120,6 +144,7 @@ class EmbeddingManager:
                 print(f"Inserted batch of {len(vectors)} vectors")
                 vectors = []
         
+        logger.info(f"Finished upserting documents. Total vectors reported as upserted by Pinecone: {vectors}.")
         return len(documents)
     
     def query_similar(self, query_text, top_k=5):
