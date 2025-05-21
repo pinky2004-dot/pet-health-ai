@@ -1,6 +1,12 @@
+#logging
+import logging
+
 import os
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# Get a logger for this module
+logger = logging.getLogger(__name__) # Logger name will be 'pdf_processor'
 
 class PDFProcessor:
     def __init__(self, chunk_size=1000, chunk_overlap=200):
@@ -11,6 +17,7 @@ class PDFProcessor:
             chunk_size: Number of characters in each chunk
             chunk_overlap: Number of characters to overlap between chunks
         """
+        logger.info(f"Initializing PDFProcessor with chunk_size={chunk_size}, chunk_overlap={chunk_overlap}.")
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -18,6 +25,7 @@ class PDFProcessor:
             chunk_overlap=chunk_overlap,
             length_function=len
         )
+        logger.debug("RecursiveCharacterTextSplitter initialized for PDFProcessor.")
     
     def extract_text_from_pdf(self, pdf_path):
         """
@@ -29,7 +37,9 @@ class PDFProcessor:
         Returns:
             String containing all text from the PDF
         """
+        logger.info(f"Attempting to extract text from PDF: '{pdf_path}'")
         if not os.path.exists(pdf_path):
+            logger.error(f"PDF file not found at path: '{pdf_path}'")
             raise FileNotFoundError(f"PDF file not found: {pdf_path}")
             
         with open(pdf_path, 'rb') as file:
@@ -38,7 +48,8 @@ class PDFProcessor:
             
             for page in pdf_reader.pages:
                 text += page.extract_text()
-                
+        
+        logger.info(f"Successfully extracted text from '{os.path.basename(pdf_path)}'")
         return text
     
     def process_directory(self, directory_path):
@@ -51,15 +62,23 @@ class PDFProcessor:
         Returns:
             List of document chunks with metadata
         """
+        logger.info(f"Starting to process PDF directory: '{directory_path}'")
         all_chunks = []
+
+        if not os.path.isdir(directory_path):
+            logger.error(f"Provided path is not a directory: '{directory_path}'")
+            return all_langchain_documents # Return empty list
         
         for filename in os.listdir(directory_path):
             if filename.endswith('.pdf'):
                 file_path = os.path.join(directory_path, filename)
-                
+                logger.info(f"Processing file: '{filename}'")
                 try:
                     # Extract text from PDF
                     text = self.extract_text_from_pdf(file_path)
+                    if not text.strip(): # Check if text is not just whitespace
+                        logger.warning(f"No meaningful text content extracted from '{filename}', skipping chunking for this file.")
+                        continue
                     
                     # Split into chunks
                     chunks = self.text_splitter.create_documents(
@@ -69,10 +88,10 @@ class PDFProcessor:
                     
                     # Add to collection
                     all_chunks.extend(chunks)
-                    print(f"Processed {filename}: {len(chunks)} chunks created")
+                    logger.info(f"Successfully processed '{filename}': created {len(chunks)} Langchain Document objects (chunks).")
                     
                 except Exception as e:
-                    print(f"Error processing {filename}: {str(e)}")
+                    logger.error(f"An unexpected error occurred while processing file '{filename}': {e}", exc_info=True)
         
         return all_chunks
     
