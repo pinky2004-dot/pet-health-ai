@@ -3,9 +3,12 @@ import Navbar from "../components/Navbar";
 
 const MainLayout = ({ children }) => {
   return (
-    <div>
+    <div className="flex flex-col min-h-screen"> {/* Ensure the layout itself takes full height */}
       <Navbar />
-      <main className="container mx-auto px-4 py-6">{children}</main>
+      {/* Removed container classes from main to allow children to fill the width */}
+      <main className="flex-grow">
+        {children}
+      </main>
     </div>
   );
 };
