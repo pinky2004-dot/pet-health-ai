@@ -1,9 +1,30 @@
+// src/components/Navbar.jsx
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { PawPrint } from "lucide-react";
+// CORRECTED IMPORT: Import specific Auth functions used in THIS component
+import { signOut } from 'aws-amplify/auth'; // Only signOut is directly used in Navbar for logout
 
 function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
+    const navigate = useNavigate();
+
+    // Determine if user is authenticated
+    // This check is simple (localStorage). PrivateRoute handles robust session check.
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+
+    const handleLogout = async () => {
+        try {
+            await signOut(); // Call the specific signOut function
+            localStorage.removeItem('isAuthenticated');
+            localStorage.removeItem('userEmail');
+            setIsOpen(false); // Close mobile menu if open
+            navigate('/'); // Navigate to home or login page
+        } catch (error) {
+            console.error("Error signing out: ", error);
+            // Optionally set an error message in UI
+        }
+    };
 
     return (
         <nav className="relative sticky top-0 z-50 overflow-hidden
@@ -30,10 +51,24 @@ function Navbar() {
                     <div className="hidden md:block">
                         <div className="ml-10 flex items-baseline space-x-4">
                             <NavLink to="/" text="Home" />
-                            <NavLink to="/chat" text="Chat" />
-                            <NavLink to="/emergency" text="Emergency" isEmergency />
-                            <NavLink to="/about" text="About" />
-                            <NavLink to="/contact" text="Contact" />
+                            {/* Conditional rendering based on authentication status */}
+                            {isAuthenticated ? (
+                                <>
+                                    <NavLink to="/chat" text="Chat" />
+                                    <NavLink to="/emergency" text="Emergency" isEmergency />
+                                    <NavLink to="/about" text="About" />
+                                    <NavLink to="/contact" text="Contact" />
+                                    <button onClick={handleLogout} className="text-gray-300 hover:text-red-400 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300">
+                                        Logout
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <NavLink to="/about" text="About" />
+                                    <NavLink to="/contact" text="Contact" />
+                                    <NavLink to="/auth" text="Login / Signup" /> {/* Link to AuthPage */}
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -60,12 +95,26 @@ function Navbar() {
 
             {/* Mobile Menu Dropdown */}
             {isOpen && (
-                <div className="md:hidden bg-gradient-to-b from-gray-950/90 via-purple-950/90 to-black/90 border-t border-white/20 pb-2"> {/* More opaque version for mobile */}
+                <div className="md:hidden bg-gradient-to-b from-gray-950/90 via-purple-950/90 to-black/90 border-t border-white/20 pb-2">
                     <MobileNavLink to="/" text="Home" />
-                    <MobileNavLink to="/chat" text="Chat" />
-                    <MobileNavLink to="/emergency" text="Emergency" isEmergency />
-                    <MobileNavLink to="/about" text="About" />
-                    <MobileNavLink to="/contact" text="Contact" />
+                    {/* Conditional rendering for mobile */}
+                    {isAuthenticated ? (
+                        <>
+                            <MobileNavLink to="/chat" text="Chat" />
+                            <MobileNavLink to="/emergency" text="Emergency" isEmergency />
+                            <MobileNavLink to="/about" text="About" />
+                            <MobileNavLink to="/contact" text="Contact" />
+                            <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-base font-medium text-red-300 hover:bg-red-800/50 transition-colors duration-300">
+                                Logout
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <MobileNavLink to="/about" text="About" />
+                            <MobileNavLink to="/contact" text="Contact" />
+                            <MobileNavLink to="/auth" text="Login / Signup" />
+                        </>
+                    )}
                 </div>
             )}
             <style jsx>{`
