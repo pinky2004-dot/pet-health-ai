@@ -10,15 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-amplify/ui-react": "^6.11.2",
     "@tailwindcss/postcss": "^4.0.14",
     "@tailwindcss/vite": "^4.0.14",
+    "aws-amplify": "^6.15.0",
     "localforage": "^1.10.0",
     "lucide-react": "^0.507.0",
     "match-sorter": "^8.0.0",
     "postcss-cli": "^11.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.3.0",
+    "react-router-dom": "^7.6.1",
     "sort-by": "^1.2.0"
   },
   "devDependencies": {
