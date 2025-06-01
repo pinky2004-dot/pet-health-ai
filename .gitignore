@@ -28,3 +28,5 @@ pdfs/
 
 #datasets
 skin-dataset/
+
+src/amplify_config.js
