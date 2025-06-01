@@ -1,6 +1,7 @@
 // src/pages/Chat.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Loader, PawPrint, MessageSquareMore, XCircle, Bot, User } from "lucide-react";
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 // Ensure this matches the Flask app's port (app.py uses 5000)
 const API_URL = "http://localhost:5000/api/chat";
@@ -45,10 +46,16 @@ function Chat() {
     }));
 
     try {
+      // Get the current authenticated user's session using fetchAuthSession
+      const { tokens } = await fetchAuthSession();
+      // The ID Token JWT is available in tokens.idToken.toString()
+      const idToken = tokens.idToken.toString();
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
             message: trimmedInput,
@@ -81,13 +88,26 @@ function Chat() {
 
     } catch (error) {
       console.error("Failed to send message or get AI response:", error);
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: `Error: ${error.message || "Could not connect to PetHealth AI services. Please try again later."}`,
-        sender: "ai",
-        type: "error"
-      };
-      setMessages(prevMessages => [...prevMessages, errorMessage]);
+      // More specific error handling for authentication
+        if (error.name === 'NotSignedInException' || error.message === 'The user is not authenticated') { // Check error.name for Amplify v6
+          const errorMessage = {
+            id: Date.now() + 1,
+            text: "Your session has expired or you are not logged in. Please log in again to chat.",
+            sender: "ai",
+            type: "error"
+          };
+          setMessages(prevMessages => [...prevMessages, errorMessage]);
+          // Optionally redirect to login page
+          // navigate('/auth');
+        } else {
+          const errorMessage = {
+            id: Date.now() + 1,
+            text: `Error: ${error.message || "Could not connect to PetHealth AI services. Please try again later."}`,
+            sender: "ai",
+            type: "error"
+          };
+          setMessages(prevMessages => [...prevMessages, errorMessage]);
+        }
     } finally {
       setIsLoading(false);
     }
