@@ -1,8 +1,10 @@
 // src/pages/Home.jsx
 import React, { useState, useEffect } from "react";
 import { MessageCircle, Camera, BookOpen, MapPin, Zap, ArrowRight, Sparkles, Heart, Shield } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Home = () => {
+    const navigate = useNavigate();
     const [isVisible, setIsVisible] = useState(false);
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
@@ -20,7 +22,7 @@ const Home = () => {
     const navigateToChat = () => {
         console.log("Navigate to Chat Page");
         // In a real application, you would use React Router or similar here:
-        // navigate('/chat');
+        navigate('/auth');
     };
 
     const features = [
