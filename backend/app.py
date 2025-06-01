@@ -8,6 +8,7 @@ from flask_compress import Compress
 import os
 from dotenv import load_dotenv
 from rag_service import RAGService
+from flask_awscognito import AWSCognitoAuthentication
 
 # Load environment variables
 load_dotenv()
@@ -55,6 +56,22 @@ app.logger.setLevel(logging.DEBUG) # Match root logger's level or set as needed
 CORS(app)
 Compress(app)
 
+# --- AWS Cognito Configuration for Flask Backend ---
+app.config['AWS_COGNITO_REGION'] = os.getenv('AWS_COGNITO_REGION') # e.g., 'us-east-1'
+app.config['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION')
+app.config['AWS_COGNITO_DOMAIN'] = os.getenv('AWS_COGNITO_DOMAIN')
+app.config['AWS_COGNITO_USER_POOL_ID'] = os.getenv('AWS_COGNITO_USER_POOL_ID') # e.g., 'us-east-1_xxxxxxxxx'
+# IMPORTANT: Frontend app client ID should be used here, NOT a server-side one
+app.config['AWS_COGNITO_USER_POOL_CLIENT_ID'] = os.getenv('AWS_COGNITO_USER_POOL_CLIENT_ID') # e.g., 'yyyyyyyyyyyyyyyyyyyy'
+app.config['AWS_COGNITO_USER_POOL_CLIENT_SECRET'] = os.getenv('AWS_COGNITO_USER_POOL_CLIENT_SECRET', '')
+app.config['AWS_COGNITO_REDIRECT_URL'] = os.getenv('AWS_COGNITO_REDIRECT_URL')
+app.config['AWS_COGNITO_CHECK_TOKEN_EXPIRATION'] = True # Recommended for security
+app.config['AWS_COGNITO_JWT_HEADER_NAME'] = 'Authorization' # Default is 'Authorization'
+app.config['AWS_COGNITO_JWT_HEADER_PREFIX'] = 'Bearer' # Default is 'Bearer'
+
+# Initialize AWSCognitoAuthentication
+aws_auth = AWSCognitoAuthentication(app)
+
 # Initializing RAG service
 rag_service_instance = None
 try:
@@ -69,10 +86,19 @@ except Exception as e: # Catch any other unexpected error during init
     # traceback.print_exc()
 
 @app.route('/api/index', methods=['POST'])
+@aws_auth.authentication_required # Protect this endpoint
 def index_documents_endpoint():
     """
     Endpoint to index PDF documents using RAGService.
+    Protected: Only authenticated users can access.
     """
+    # jwt_claims = aws_auth.get_claims()
+    # user_id = jwt_claims.get('sub') # The 'sub' claim is the user's unique ID
+    # user_email = jwt_claims.get('email') # Get email if available in claims
+    # user_given_name = jwt_claims.get('given_name', 'N/A') # Get given_name if available
+
+    # app.logger.info(f"'/api/index' endpoint hit by authenticated user: {user_id} (Email: {user_email}, Name: {user_given_name}) from {request.remote_addr}")
+    # app.logger.info(f"'/api/index' endpoint hit by authenticated user: {user_id} from {request.remote_addr}")
     app.logger.info(f"'/api/index' endpoint hit by {request.remote_addr}")
     if rag_service_instance is None:
         app.logger.error("RAGService not available for '/api/index' due to initialization failure.")
@@ -106,10 +132,19 @@ def index_documents_endpoint():
         return jsonify({"error": f"Indexing failed: {str(e)}"}), 500
 
 @app.route('/api/chat', methods=['POST'])
+@aws_auth.authentication_required # Protect this endpoint
 def chat_endpoint():
     """
     Endpoint to handle chat messages. Now expects 'chat_history' in the request.
+    Protected: Only authenticated users can access.
     """
+    # jwt_claims = aws_auth.get_claims()
+    # user_id = jwt_claims.get('sub') # The 'sub' claim is the user's unique ID
+    # user_email = jwt_claims.get('email') # Get email if available in claims
+    # user_given_name = jwt_claims.get('given_name', 'N/A') # Get given_name if available, default to 'N/A'
+
+    # app.logger.info(f"'/api/chat' endpoint hit by authenticated user: {user_id} (Email: {user_email}, Name: {user_given_name}) from {request.remote_addr}")
+    # app.logger.info(f"'/api/chat' endpoint hit by authenticated user: {user_id} from {request.remote_addr}")
     app.logger.info(f"'/api/chat' endpoint hit by {request.remote_addr}")
     if rag_service_instance is None:
         app.logger.error("RAGService not available for '/api/chat' due to initialization failure.")
