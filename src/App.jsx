@@ -15,27 +15,32 @@ import { signOut, fetchAuthSession } from 'aws-amplify/auth';
 import { Amplify } from 'aws-amplify'; // Add this line if not already there, ensures Amplify is configured properly
 
 
+// PrivateRoute component to protect routes
 const PrivateRoute = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [loadingAuth, setLoadingAuth] = React.useState(true);
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // Initialize useNavigate here
 
   React.useEffect(() => {
     const checkAuth = async () => {
       try {
-        await fetchAuthSession();
+        await fetchAuthSession(); // This attempts to get the current session
         setIsAuthenticated(true);
       } catch (error) {
-        console.log("No authenticated session:", error);
-        setIsAuthenticated(false);
+        // If fetchAuthSession throws an error, it means no active session
+        console.log("No authenticated session found. Redirecting to auth page:", error);
+        setIsAuthenticated(false); // Ensure this is false
+        // Immediately navigate to the auth page if not authenticated
+        navigate('/auth', { replace: true });
       } finally {
         setLoadingAuth(false);
       }
     };
     checkAuth();
-  }, []);
+  }, [navigate]); // Add navigate to dependency array for useEffect
 
   if (loadingAuth) {
+    // Show a loading spinner or message while checking auth status
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-purple-950 to-black text-white">
         <div className="flex items-center text-xl">
@@ -49,6 +54,9 @@ const PrivateRoute = ({ children }) => {
     );
   }
 
+  // If we reach here and isAuthenticated is false, it means checkAuth already redirected,
+  // or there was a very rare race condition. The primary redirect happens inside checkAuth.
+  // This Navigate will act as a fallback, though it ideally won't be hit if checkAuth redirects.
   if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;
   }
@@ -62,7 +70,7 @@ function App() {
       await signOut();
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('userEmail');
-      window.location.href = '/';
+      window.location.href = '/'; // Simple full page reload to clear state
     } catch (error) {
       console.error("Error signing out: ", error);
     }
@@ -93,6 +101,8 @@ function App() {
             </PrivateRoute>
           }
         />
+
+        {/* Add a logout route or button on protected pages/navbar */}
          <Route path="/logout" element={<MainLayout><LogoutPage onLogout={handleLogout} /></MainLayout>} />
       </Routes>
     </Router>
@@ -101,7 +111,7 @@ function App() {
 
 const LogoutPage = ({ onLogout }) => {
     React.useEffect(() => {
-        onLogout();
+        onLogout(); // Call logout function when component mounts
     }, [onLogout]);
     return (
         <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-gradient-to-br from-gray-950 via-purple-950 to-black text-white p-4">
