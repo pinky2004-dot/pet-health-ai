@@ -3,6 +3,10 @@ import logging
 
 import os
 from dotenv import load_dotenv
+import boto3
+import json
+import ast
+import base64
 
 # Langchain components
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -32,7 +36,22 @@ PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 EMBEDDING_MODEL_NAME = "text-embedding-3-large"
 LLM_MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4.1")
 
+AWS_REGION = os.getenv("REGION_NAME", "us-east-1")
+BEDROCK_CLASSIFICATION_MODEL_ID = os.getenv("BEDROCK_CLASSIFICATION_MODEL_ID")
+SAGEMAKER_SKIN_ANALYSIS_ENDPOINT_NAME = os.getenv("SAGEMAKER_SKIN_ENDPOINT_NAME")
+SAGEMAKER_SKIN_ENDPOINT_CONTENT_TYPE = os.getenv("SAGEMAKER_SKIN_CONTENT_TYPE", "application/x-image") 
+SAGEMAKER_SKIN_ENDPOINT_ACCEPT_TYPE = "application/json"
+
 class RAGService:
+    _SADEMAKER_MODEL_CLASS_NAMES = [
+        "dog_demodicosis", 
+        "dog_dermatitis", 
+        "dog_fungal_infections",
+        "dog_healthy",
+        "dog_hypersensitivity",
+        "dog_ringworm"
+    ]
+
     def __init__(self):
         """
         Initialize the RAG service with Langchain components for conversational RAG.
@@ -45,6 +64,20 @@ class RAGService:
                 "Missing one or more critical environment variables: "
                 "OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_INDEX_NAME"
             )
+        
+        try:
+            self.bedrock_runtime_client = boto3.client(service_name='bedrock-runtime', region_name=AWS_REGION)
+            logger.info(f"AWS Bedrock runtime client initialized for region '{AWS_REGION}'.")
+                
+            if SAGEMAKER_SKIN_ANALYSIS_ENDPOINT_NAME:
+                self.sagemaker_runtime_client = boto3.client(service_name='sagemaker-runtime', region_name=AWS_REGION)
+                logger.info(f"AWS SageMaker runtime client initialized for region '{AWS_REGION}'.")
+            else:
+                self.sagemaker_runtime_client = None
+                logger.warning("SAGEMAKER_SKIN_ENDPOINT_NAME not set. Skin image analysis will be disabled.")
+        except Exception as e:
+            logger.error(f"CRITICAL: Failed to initialize AWS SDK clients: {e}", exc_info=True)
+            raise
 
         # 1. Initialize Embeddings model (for retrieval by Langchain)
         # This MUST be the SAME model used for indexing (text-embedding-3-large).
@@ -57,7 +90,7 @@ class RAGService:
 
         # 2. Initialize LLM
         logger.debug(f"Attempting to initialize ChatOpenAI LLM with model: '{LLM_MODEL_NAME}'...")
-        self.llm = ChatOpenAI(
+        self.llm_rag = ChatOpenAI(
             openai_api_key=OPENAI_API_KEY,
             model_name=LLM_MODEL_NAME,
             temperature=0.6 # Good balance for informative yet slightly varied pet health advice
@@ -92,50 +125,42 @@ class RAGService:
         self.memory = ConversationBufferMemory(
             memory_key="chat_history",
             return_messages=True,
-            output_key='answer'
+            output_key='answer',
+            input_key='question' # This tells the memory what to consider as the "Human" input
         )
         logger.info("ConversationBufferMemory initialized.")
 
         # 5. Defining the Prompt Template for the Conversational Chain
-        _template = """You are PetHealth AI, a friendly, empathetic, and knowledgeable virtual assistant dedicated to providing pet health information.
-Your primary goal is to help pet owners by offering clear, accurate, and easy-to-understand advice based on the provided context from veterinary documents and the ongoing conversation.
-Always maintain a supportive and understanding tone, especially if the user expresses concern about their pet.
+        _rag_template = """You are PetHealth AI, a friendly, empathetic, and knowledgeable virtual assistant.
+The user's query has been preliminarily assessed as NON-URGENT.
+Your role is to provide helpful at-home advice and information based on the 'Retrieved Context' from veterinary documents and the 'Chat History'.
+The 'Human's Question' may contain preliminary findings from an AI image analysis (SageMaker); you MUST incorporate these findings thoughtfully into your response if the user's question is about a skin condition or the image.
+If the context from the documents doesn't fully answer the user's question, state that and suggest general care or monitoring based on the provided information.
+Always remind the user to consult a veterinarian if symptoms worsen, if they are unsure, or for a definitive diagnosis.
 
-Follow these guidelines strictly:
-1.  Base your answers on the 'Retrieved Context'.
-2.  Use the 'Chat History' to understand the flow of the conversation, address follow-up questions, and maintain context.
-3.  If the 'Retrieved Context' does not contain sufficient information to answer the 'Human's Question', clearly state that the information is not available in your current knowledge base. For example: "I don't have specific information on that in my current knowledge base." Do NOT invent information or attempt to answer outside the provided context.
-4.  If the question is off-topic (not related to pet health), politely decline or gently steer the conversation back. For example: "I'm designed to assist with pet health questions. Do you have any concerns about your pet that I can help with today?"
-5.  Provide answers in a conversational and accessible style. Avoid overly technical jargon. If technical terms are necessary, explain them simply.
-6.  If the user expresses worry, anxiety, or distress, acknowledge their feelings with empathy before providing information. For example: "I understand this must be worrying for you..." or "I can see why you'd be concerned about that..."
-7.  Crucially, do NOT provide specific medical diagnoses or prescribe treatments. Always strongly recommend consulting a qualified veterinarian for diagnosis, treatment decisions, or in emergencies. You can phrase this like: "While I can share some general information based on my resources, it's really important to have a veterinarian examine your pet for an accurate diagnosis and the most appropriate treatment plan." or "For any urgent concerns or if your pet's condition worsens, please contact your vet immediately."
+Retrieved Context from documents:
+{context}
 
 Chat History:
 {chat_history}
 
-Retrieved Context:
-{context}
+Human's Question:
+{question}
 
-Human's Question: {question}
-
-PetHealth AI's Answer:"""
+PetHealth AI's Non-Urgent Advice (synthesizing all available information):"""
         
-        QA_PROMPT = PromptTemplate(
-            input_variables=["chat_history", "context", "question"],
-            template=_template
+        RAG_PROMPT = PromptTemplate(
+            input_variables=["chat_history", "context", "question"], 
+            template=_rag_template
         )
         logger.debug("QA_PROMPT template defined for ConversationalRetrievalChain.")
 
         # 6. Creating a ConversationalRetrievalChain
         logger.debug("Creating ConversationalRetrievalChain...")
-        self.qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=self.llm,
-            retriever=self.retriever,
-            memory=self.memory,
-            combine_docs_chain_kwargs={"prompt": QA_PROMPT},
-            return_source_documents=False, # Set to True for debugging if needed
-            output_key='answer',
-            # verbose=True # Uncomment for detailed chain logging during development
+        self.qa_chain_rag = ConversationalRetrievalChain.from_llm(
+            llm=self.llm_rag, retriever=self.retriever, memory=self.memory,
+            combine_docs_chain_kwargs={"prompt": RAG_PROMPT},
+            return_source_documents=True, output_key='answer'
         )
         logger.info("ConversationalRetrievalChain created successfully.")
         logger.info("RAGService core components initialization complete.")
@@ -176,57 +201,147 @@ PetHealth AI's Answer:"""
             # import traceback
             # traceback.print_exc()
             raise
-
-    def generate_response(self, user_query: str, chat_history_from_frontend: list):
+    
+    def classify_urgency_with_bedrock(self, user_query: str, chat_history: list) -> str:
         """
-        Generate a response using the conversational RAG chain.
+        FIXED V2: This version adds a 'GENERAL_CONVERSATION' category to better handle
+        non-medical questions and prevent incorrect urgency classifications.
         """
-        if not self.qa_chain:
-            logger.error("RAGService.generate_response: QA Chain is not initialized!")
-            return "I'm sorry, but I'm currently unable to process your request due to a setup issue. Please try again later."
-        
-        logger.info(f"RAGService: Generating response for user query (first 75 chars): '{user_query[:75]}...'")
-        logger.debug(f"RAGService: Received chat history (length {len(chat_history_from_frontend)}). Last item (if any): {chat_history_from_frontend[-1:]}")
+        logger.info(f"Classifying query type/urgency with Bedrock for query: '{user_query[:100]}...'")
 
-        langchain_formatted_history = []
-        for msg in chat_history_from_frontend:
-            if msg.get("sender") == "user":
-                langchain_formatted_history.append(HumanMessage(content=msg.get("text")))
-            elif msg.get("sender") == "ai":
-                langchain_formatted_history.append(AIMessage(content=msg.get("text")))
+        # This correctly uses only the user's history to avoid context pollution
+        user_history_messages = [f"User: {msg.get('text')}" for msg in chat_history[-5:] if msg.get('sender') == 'user']
+        history_str = "\n".join(user_history_messages)
+
+        # V2 PROMPT: Added GENERAL_CONVERSATION as an option and clarified instructions.
+        system_prompt = """You are an AI assistant that classifies pet-related user queries into one of four categories. Respond with only one of these exact phrases: URGENT, NON_URGENT, UNCERTAIN, or GENERAL_CONVERSATION.
+    - URGENT: The user describes a life-threatening situation, severe distress, or a serious medical condition requiring immediate attention (e.g., "can't breathe," "ate poison," "heavy bleeding").
+    - NON_URGENT: The user asks about common, mild ailments, general health questions, or describes non-critical symptoms (e.g., "my dog is itching," "what should I feed my cat?").
+    - GENERAL_CONVERSATION: The user's query is conversational and not a health question (e.g., "hello," "thank you," "I have two dogs").
+    - UNCERTAIN: The query is too vague to classify, but seems like it might be about a health concern.
+    """
         
-        logger.debug(f"RAGService: Formatted Langchain history for chain (length {len(langchain_formatted_history)}).")
+        user_message_content = f"Please classify the user's latest query based on their conversation history.\n\nRecent User Queries:\n<chat_history>\n{history_str or 'N/A'}\n</chat_history>\n\nUser's Latest Query: \"{user_query}\"\n\nClassification:"
+        
+        messages = [{"role": "user", "content": [{"type": "text", "text": user_message_content}]}]
+        body = json.dumps({"anthropic_version": "bedrock-2023-05-31", "max_tokens": 20, "temperature": 0.0, "system": system_prompt, "messages": messages})
         
         try:
-            logger.info("RAGService: Invoking ConversationalRetrievalChain...")
-            # The chain's memory will be automatically updated.
-            # We pass the history for the current turn's context.
-            result = self.qa_chain.invoke({
-                "question": user_query,
-                "chat_history": langchain_formatted_history # Pass history for context in prompt
-            })
-            ai_response = result.get("answer", "I'm sorry, I couldn't formulate a response for that.")
+            response = self.bedrock_runtime_client.invoke_model(body=body, modelId=BEDROCK_CLASSIFICATION_MODEL_ID, accept='application/json', contentType='application/json')
+            response_body = json.loads(response.get('body').read())
+            raw_text = response_body.get("content", [{}])[0].get("text", "").strip().upper().replace("_", " ")
 
-            source_documents = result.get("source_documents", [])
-            if source_documents:
-                logger.debug(f"RAGService: ConversationalRetrievalChain retrieved {len(source_documents)} source documents for query '{user_query[:75]}...':")
-                for i, doc in enumerate(source_documents):
-                    source_info = doc.metadata.get('source', 'N/A')
-                    page_content_snippet = (doc.page_content[:75] + '...') if len(doc.page_content) > 75 else doc.page_content
-                    logger.debug(f"  SourceDoc {i+1}: From '{source_info}', Snippet: '{page_content_snippet}'")
+            # Check for the new category first
+            if "GENERAL CONVERSATION" in raw_text:
+                classification = "GENERAL_CONVERSATION"
+            elif "URGENT" in raw_text:
+                classification = "URGENT"
+            elif "NON URGENT" in raw_text:
+                classification = "NON_URGENT"
             else:
-                logger.debug(f"RAGService: No source documents were retrieved by the chain for query '{user_query[:75]}...'.")
-
-            logger.info(f"RAGService: Successfully generated AI response. Length: {len(ai_response)}")
-            if logger.isEnabledFor(logging.DEBUG): # Avoid constructing snippet if not logging debug
-                 ai_response_snippet_debug = (ai_response[:150] + '...') if len(ai_response) > 150 else ai_response
-                 logger.debug(f"RAGService: AI Response Snippet (for debug): '{ai_response_snippet_debug}'")
+                classification = "UNCERTAIN" # Default fallback
             
+            logger.info(f"Bedrock query classification result: '{classification}'")
+            return classification
         except Exception as e:
-            logger.error(f"RAGService: Error during QA chain invocation for query '{user_query[:75]}...': {e}", exc_info=True)
-            # import traceback
-            # traceback.print_exc()
-            ai_response = "I apologize, but I encountered a technical difficulty. Could you please try rephrasing or asking again in a moment?"
+            logger.error(f"Error during Bedrock urgency classification: {e}", exc_info=True)
+            return "UNCERTAIN"
+    
+    def analyze_skin_image_with_sagemaker(self, image_bytes: bytes) -> dict:
+        if not self.sagemaker_runtime_client:
+            return {"analysis_summary": "Image analysis feature not configured."}
+        logger.info(f"Invoking SageMaker endpoint '{SAGEMAKER_SKIN_ANALYSIS_ENDPOINT_NAME}' with image of size {len(image_bytes)} bytes.")
+        try:
+            response = self.sagemaker_runtime_client.invoke_endpoint(
+                EndpointName=SAGEMAKER_SKIN_ANALYSIS_ENDPOINT_NAME,
+                ContentType=SAGEMAKER_SKIN_ENDPOINT_CONTENT_TYPE,
+                Body=image_bytes
+            )
+            response_body_str = response['Body'].read().decode('utf-8')
+            logger.debug(f"SageMaker raw response string: {response_body_str}")
+                
+            probabilities = ast.literal_eval(response_body_str)
+                
+            if isinstance(probabilities, list) and len(probabilities) == len(self._SADEMAKER_MODEL_CLASS_NAMES):
+                max_score = max(probabilities)
+                max_index = probabilities.index(max_score)
+                predicted_label = self._SADEMAKER_MODEL_CLASS_NAMES[max_index]
+                analysis_summary = f"Preliminary image analysis suggests the condition appears most similar to '{predicted_label}' (with a {max_score:.1%} confidence score). This is not a definitive diagnosis and a veterinarian must be consulted for confirmation."
+                logger.info(f"SageMaker prediction: '{predicted_label}' with score {max_score:.4f}")
+            else:
+                analysis_summary = "Image analysis results received in an unexpected format."
+                logger.warning(f"Parsed SageMaker output was not a list of {len(self._SADEMAKER_MODEL_CLASS_NAMES)} probabilities: {probabilities}")
 
-        print(f"AI Response: {ai_response}")
-        return ai_response
+            return {"analysis_summary": analysis_summary, "raw_output": probabilities}
+        except Exception as e:
+            logger.error(f"Error invoking or parsing SageMaker endpoint response: {e}", exc_info=True)
+            return {"analysis_summary": "Could not perform skin image analysis due to a technical issue."}
+
+    def generate_response(self, user_query: str, chat_history_from_frontend: list, image_data_base64: str = None) -> dict:
+        """
+        FIXED V2: This version handles the new 'GENERAL_CONVERSATION' category to provide
+        a more natural, friendly response to non-medical queries. It also ensures the
+        conversation memory is cleared for each request.
+        """
+        classification = self.classify_urgency_with_bedrock(user_query, chat_history_from_frontend)
+        
+        sagemaker_analysis_summary = "No image was submitted for analysis."
+        sagemaker_raw_output = None
+
+        if image_data_base64:
+            sagemaker_result_dict = self.analyze_skin_image_with_sagemaker(base64.b64decode(image_data_base64))
+            sagemaker_analysis_summary = sagemaker_result_dict.get("analysis_summary", "Image analysis failed.")
+            sagemaker_raw_output = sagemaker_result_dict.get("raw_output")
+        
+        additional_data = {"sagemaker_analysis": {"summary": sagemaker_analysis_summary, "raw": sagemaker_raw_output}}
+        response_message = ""
+        # The 'urgency' key in the response will now hold one of the four categories
+        urgency_for_frontend = classification
+
+        if classification == "URGENT":
+            response_message = (
+                f"**IMPORTANT: Based on your description, this situation sounds potentially serious and may require "
+                f"IMMEDIATE veterinary attention. Please contact your local vet or an emergency animal hospital right away.**\n\n"
+                f"AI Skin Image Analysis (if image provided): {sagemaker_analysis_summary}\n\n"
+                "We can help you find the nearest emergency vet. Please remember, our AI tools provide preliminary insights and are NOT a substitute for professional veterinary examination and diagnosis."
+            )
+            additional_data.update({"action_required": "IMMEDIATE_VET_CONSULTATION", "suggest_find_vet": True, "navigate_to_emergency_page": True})
+        
+        else: # Handles NON_URGENT, UNCERTAIN, and GENERAL_CONVERSATION
+            try:
+                question_for_rag = user_query
+                if image_data_base64 and sagemaker_analysis_summary.find("No image") == -1 and sagemaker_analysis_summary.find("not available") == -1:
+                    question_for_rag = (
+                        f"A skin image was analyzed by an AI, which provided the following preliminary findings: '{sagemaker_analysis_summary}'. "
+                        f"Based on this finding AND the user's text query below, please provide advice.\n\n"
+                        f"User's Text Query: {user_query}"
+                    )
+
+                # Clear memory from the previous request to ensure the chain is stateless.
+                self.memory.clear()
+                langchain_formatted_history = [HumanMessage(content=msg['text']) if msg['sender'] == 'user' else AIMessage(content=msg['text']) for msg in chat_history_from_frontend]
+                self.memory.chat_memory.add_messages(langchain_formatted_history)
+
+                result = self.qa_chain_rag.invoke({
+                    "question": question_for_rag
+                })
+                
+                rag_answer = result.get("answer", "I'm not quite sure how to respond to that, but I'm here to help with your pet's health questions.")
+                
+                # Tailor the response prefix based on the classification.
+                if classification == "UNCERTAIN":
+                    # Only show the warning for UNCERTAIN health-related queries.
+                    response_message = f"I'm not entirely sure about the urgency of this situation. Here is some information that may be helpful, but it's always safest to consult a vet if you are concerned:\n\n{rag_answer}"
+                else: # NON_URGENT and GENERAL_CONVERSATION get a direct, friendly answer.
+                    response_message = rag_answer
+                
+                additional_data["action_required"] = "MONITOR_AND_CONSIDER_VET_IF_NEEDED"
+
+            except Exception as e:
+                logger.error(f"RAGService: Error during RAG chain invocation: {e}", exc_info=True)
+                response_message = f"I'm having trouble retrieving detailed information from my knowledge base right now. Image analysis: {sagemaker_analysis_summary}. Please monitor your pet and contact your vet if things don't improve."
+                urgency_for_frontend = "UNCERTAIN" 
+                additional_data.update({"action_required": "MONITOR_AND_CONSIDER_VET_IF_NEEDED", "error_retrieving_details": True})
+                
+        # Return a clean response object for the frontend to handle.
+        return {"urgency": urgency_for_frontend, "response": response_message, "data": additional_data}
