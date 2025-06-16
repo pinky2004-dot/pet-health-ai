@@ -2,6 +2,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 
+import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_compress import Compress
@@ -9,6 +10,9 @@ import os
 from dotenv import load_dotenv
 from rag_service import RAGService
 from flask_awscognito import AWSCognitoAuthentication
+import boto3
+import json
+import math
 
 # Load environment variables
 load_dotenv()
@@ -56,6 +60,8 @@ app.logger.setLevel(logging.DEBUG) # Match root logger's level or set as needed
 CORS(app)
 Compress(app)
 
+AWS_REGION_FOR_CLIENTS = os.getenv("REGION_NAME", "us-east-1")
+LOCATION_PLACE_INDEX_NAME = os.getenv("AWS_LOCATION_PLACE_INDEX_NAME")
 # --- AWS Cognito Configuration for Flask Backend ---
 app.config['AWS_COGNITO_REGION'] = os.getenv('AWS_COGNITO_REGION') # e.g., 'us-east-1'
 app.config['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION')
@@ -71,6 +77,16 @@ app.config['AWS_COGNITO_JWT_HEADER_PREFIX'] = 'Bearer' # Default is 'Bearer'
 
 # Initialize AWSCognitoAuthentication
 aws_auth = AWSCognitoAuthentication(app)
+
+location_client = None
+if LOCATION_PLACE_INDEX_NAME:
+    try:
+        location_client = boto3.client('location', region_name=AWS_REGION_FOR_CLIENTS)
+        module_logger.info(f"Amazon Location Service client initialized.")
+    except Exception as e:
+        module_logger.error(f"Failed to initialize Amazon Location Service client: {e}", exc_info=True)
+else:
+    module_logger.warning("AWS_LOCATION_PLACE_INDEX_NAME not set. Vet finding feature will be disabled.")
 
 # Initializing RAG service
 rag_service_instance = None
@@ -131,53 +147,117 @@ def index_documents_endpoint():
         # traceback.print_exc()
         return jsonify({"error": f"Indexing failed: {str(e)}"}), 500
 
+@app.route('/api/find_vets', methods=['POST'])
+@aws_auth.authentication_required # Protect this endpoint
+def find_vets_api():
+    app.logger.info(f"'/api/find_vets' endpoint hit by {request.remote_addr}")
+    if not location_client or not LOCATION_PLACE_INDEX_NAME:
+        return jsonify({"error": "Vet finding service unavailable/not configured."}), 503
+    data = request.json
+    latitude, longitude = data.get('latitude'), data.get('longitude')
+    if latitude is None or longitude is None: return jsonify({"error": "Latitude/longitude required."}), 400
+    try:
+        # --- FIX: Calculate a bounding box to filter results ---
+        radius_km = 50  # Search within a 50km radius (approx. 30 miles)
+        lat_delta = radius_km / 111.0
+        lon_delta = radius_km / (111.0 * math.cos(math.radians(latitude)))
+
+        min_lon = longitude - lon_delta
+        min_lat = latitude - lat_delta
+        max_lon = longitude + lon_delta
+        max_lat = latitude + lat_delta
+        # ---------------------------------------------------------
+
+        app.logger.info(f"Searching for vets near ({latitude}, {longitude}) using ALS index '{LOCATION_PLACE_INDEX_NAME}'.")
+
+        search_text = 'veterinary animal pet clinic hospital vet'
+        search_params = {
+            'IndexName': LOCATION_PLACE_INDEX_NAME, 
+            # 'BiasPosition': [float(longitude), float(latitude)],
+            # FIX: Add the FilterBBox parameter to restrict the search area
+            'FilterBBox': [min_lon, min_lat, max_lon, max_lat], 
+            'MaxResults': 10,
+            'Text': search_text,
+        }
+        response = location_client.search_place_index_for_text(**search_params)
+        vets = []
+        for place_result in response.get('Results', []):
+            place = place_result.get('Place', {})
+
+            # Safer way to parse the address label
+            label_parts = place.get('Label', '').split(', ', 1)
+            vet_name = label_parts[0]
+            vet_address = label_parts[1] if len(label_parts) > 1 else ''
+
+            vet_info = {
+                "id": place.get('PlaceId'), 
+                "name": vet_name,
+                "address": vet_address,
+                "longitude": place.get('Geometry', {}).get('Point', [None, None])[0],
+                "latitude": place.get('Geometry', {}).get('Point', [None, None])[1],
+                "phone": place.get('PhoneNumber')
+            }
+            
+            if vet_info["name"]:
+                vets.append(vet_info)
+            
+        app.logger.info(f"Found {len(vets)} potential veterinary locations.")
+        # If no vets are found, add a helpful error message to the frontend.
+        # if not vets:
+        #     setLocationError("No veterinary clinics were automatically found within a 30-mile radius. Please try a manual search.")
+
+        return jsonify({"success": True, "vets": vets})
+    except Exception as e:
+        app.logger.error(f"Error in /api/find_vets: {e}", exc_info=True)
+        return jsonify({"error": "Failed to find nearby vets due to a server error."}), 500
+
 @app.route('/api/chat', methods=['POST'])
 @aws_auth.authentication_required # Protect this endpoint
 def chat_endpoint():
-    """
-    Endpoint to handle chat messages. Now expects 'chat_history' in the request.
-    Protected: Only authenticated users can access.
-    """
-    # jwt_claims = aws_auth.get_claims()
-    # user_id = jwt_claims.get('sub') # The 'sub' claim is the user's unique ID
-    # user_email = jwt_claims.get('email') # Get email if available in claims
-    # user_given_name = jwt_claims.get('given_name', 'N/A') # Get given_name if available, default to 'N/A'
-
-    # app.logger.info(f"'/api/chat' endpoint hit by authenticated user: {user_id} (Email: {user_email}, Name: {user_given_name}) from {request.remote_addr}")
-    # app.logger.info(f"'/api/chat' endpoint hit by authenticated user: {user_id} from {request.remote_addr}")
     app.logger.info(f"'/api/chat' endpoint hit by {request.remote_addr}")
     if rag_service_instance is None:
-        app.logger.error("RAGService not available for '/api/chat' due to initialization failure.")
-        return jsonify({"error": "RAGService is not available due to an initialization error."}), 503
+        return jsonify({"error": "RAGService is not available. Please check server logs."}), 503
 
-    data = request.json
-    user_message = data.get('message', '')
-    chat_history_from_frontend = data.get('chat_history', []) 
-    
-    app.logger.debug(f"Received user message for chat: '{user_message}'")
-    app.logger.debug(f"Received chat history length: {len(chat_history_from_frontend)}")
-    if chat_history_from_frontend and app.logger.isEnabledFor(logging.DEBUG): # Avoid processing if not logging debug
-        # Log only a summary or last few messages if history is long
-        history_summary = [f"{msg['sender']}: {msg['text'][:30]}..." for msg in chat_history_from_frontend[-2:]]
-        app.logger.debug(f"Last 2 chat history items (summary): {history_summary}")
-    
-    if not user_message:
-        app.logger.warning("Empty message received for '/api/chat'.")
-        return jsonify({"error": "Empty message received"}), 400
-    
+    content_type_header = request.headers.get('Content-Type', '').lower()
+    user_message = ''
+    chat_history_from_frontend = []
+    image_data_base64 = None
+
+    if 'multipart/form-data' in content_type_header:
+        app.logger.debug("Processing chat request as multipart/form-data.")
+        user_message = request.form.get('message', '')
+        chat_history_str = request.form.get('chat_history', '[]')
+        try:
+            chat_history_from_frontend = json.loads(chat_history_str)
+        except json.JSONDecodeError:
+            chat_history_from_frontend = []
+
+        if 'image' in request.files:
+            image_file = request.files['image']
+            if image_file and image_file.filename != '':
+                image_bytes = image_file.read()
+                image_data_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                app.logger.info(f"Image '{image_file.filename}' received and converted to base64.")
+    else: # JSON
+        app.logger.debug("Processing chat request as application/json.")
+        data = request.json
+        user_message = data.get('message', '')
+        chat_history_from_frontend = data.get('chat_history', [])
+        
+    if not user_message and not image_data_base64:
+        return jsonify({"error": "Please provide a message or an image."}), 400
+        
+    if not user_message and image_data_base64:
+        user_message = "User uploaded an image of a pet's skin condition for analysis."
+        
     try:
-        app.logger.info(f"Calling RAGService.generate_response for user message: '{user_message[:50]}...'")
-        ai_response_text = rag_service_instance.generate_response(user_message, chat_history_from_frontend)
-        response_data = {"response": ai_response_text}
-
-        ai_response_snippet = (ai_response_text[:75] + '...') if len(ai_response_text) > 75 else ai_response_text
-        app.logger.info(f"AI response generated successfully (snippet): '{ai_response_snippet}'")
-        return jsonify(response_data) # Matching original key
+        structured_ai_response = rag_service_instance.generate_response(
+            user_message, chat_history_from_frontend, image_data_base64=image_data_base64
+        )
+        return jsonify(structured_ai_response)
     except Exception as e:
-        app.logger.error(f"Error during '/api/chat' execution for message '{user_message[:50]}...': {e}", exc_info=True)
-        # import traceback
-        # traceback.print_exc()
-        return jsonify({"error": f"An internal server error occurred: {str(e)}"}), 500
+        app.logger.error(f"Error in /api/chat execution: {e}", exc_info=True)
+        return jsonify({"urgency": "ERROR", "message": "An internal server error occurred."}), 500
 
 if __name__ == '__main__':
     module_logger.info("Flask application starting in debug mode (app.py as __main__)...")
