@@ -46,6 +46,7 @@ function EmergencyPage() {
     const [nearbyVets, setNearbyVets] = useState([]);
     const [loadingVets, setLoadingVets] = useState(true);
     const [locationError, setLocationError] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const mapRef = useRef(null); // Ref for the map container to potentially re-render map
 
     useEffect(() => {
@@ -123,6 +124,58 @@ function EmergencyPage() {
         }
     };
 
+    const handleManualSearch = async (e) => {
+        e.preventDefault(); // Prevent the form from reloading the page
+        if (!searchQuery.trim()) {
+            alert("Please enter a city or address to search.");
+            return;
+        }
+
+        setLoadingVets(true); // Show a loader
+        setLocationError('');
+        setNearbyVets([]); // Clear previous results
+
+        try {
+            const { tokens } = await fetchAuthSession();
+            const idToken = tokens.idToken.toString();
+
+            const response = await fetch("http://localhost:5000/api/search_vets_by_text", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({ query: searchQuery }),
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({error: `Server error: ${response.status}`}));
+                throw new Error(errData.error || `Failed to fetch vets: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const vets = data.vets || [];
+            setNearbyVets(vets);
+
+            if (vets.length > 0) {
+                // Re-center the map on the first search result
+                setUserCoords({
+                    latitude: vets[0].latitude,
+                    longitude: vets[0].longitude,
+                });
+            } else {
+                setLocationError(`No veterinary clinics were found for "${searchQuery}". Please try a different search.`);
+            }
+
+        } catch (error) {
+            console.error("Error during manual vet search:", error);
+            setLocationError(error.message);
+            setNearbyVets([]);
+        } finally {
+            setLoadingVets(false);
+        }
+    };
+
     const formatMessageForDisplay = (text) => {
         if (typeof text !== 'string') return "";
         return text.split('\n').map((item, key) => (
@@ -165,6 +218,28 @@ function EmergencyPage() {
 
                     <div className="mb-8 p-6 bg-gray-800/60 rounded-xl shadow-xl border border-gray-700 animate-fade-in" style={{ animationDelay: '0.6s' }}>
                         <h2 className="text-xl sm:text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">Nearby Emergency Vets</h2>
+
+                        {/* START: SEARCH FORM */}
+                        <form onSubmit={handleManualSearch} className="mb-4 flex flex-col sm:flex-row gap-2">
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search by city or address (e.g., Dallas, TX)"
+                                className="flex-1 bg-gray-900/80 border border-gray-600 rounded-md px-4 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                aria-label="Search for vets in a specific location"
+                                disabled={loadingVets}
+                            />
+                            <button
+                                type="submit"
+                                disabled={loadingVets}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loadingVets ? 'Searching...' : 'Search'}
+                            </button>
+                        </form>
+                        <p className="text-xs text-gray-400 mb-4 text-center italic">- or -</p>
+                        {/* END: SEARCH FORM */}
 
                         {loadingVets && (
                             <div className="flex flex-col items-center justify-center py-10">
