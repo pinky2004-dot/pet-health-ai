@@ -176,7 +176,7 @@ def find_vets_api():
             # 'BiasPosition': [float(longitude), float(latitude)],
             # FIX: Add the FilterBBox parameter to restrict the search area
             'FilterBBox': [min_lon, min_lat, max_lon, max_lat], 
-            'MaxResults': 10,
+            'MaxResults': 20,
             'Text': search_text,
         }
         response = location_client.search_place_index_for_text(**search_params)
@@ -209,6 +209,59 @@ def find_vets_api():
         return jsonify({"success": True, "vets": vets})
     except Exception as e:
         app.logger.error(f"Error in /api/find_vets: {e}", exc_info=True)
+        return jsonify({"error": "Failed to find nearby vets due to a server error."}), 500
+
+@app.route('/api/search_vets_by_text', methods=['POST'])
+@aws_auth.authentication_required
+def search_vets_by_text_api():
+    app.logger.info(f"'/api/search_vets_by_text' endpoint hit by {request.remote_addr}")
+    if not location_client or not LOCATION_PLACE_INDEX_NAME:
+        return jsonify({"error": "Vet finding service unavailable/not configured."}), 503
+
+    data = request.json
+    query = data.get('query')
+    if not query:
+        return jsonify({"error": "A search query is required."}), 400
+
+    try:
+        # Prepend search terms to the user's location query for better results
+        search_text = f"veterinarian or vet in {query}"
+        app.logger.info(f"Searching for vets with text query: '{search_text}'")
+
+        search_params = {
+            'IndexName': os.getenv("AWS_LOCATION_PLACE_INDEX_NAME"),
+            'Text': search_text,
+            'FilterCountries': ['USA'], # Optional: Filter results to a specific country
+            'MaxResults': 10,
+            'Language': 'en'
+        }
+
+        response = location_client.search_place_index_for_text(**search_params)
+
+        vets = []
+        for place_result in response.get('Results', []):
+            place = place_result.get('Place', {})
+            
+            label_parts = place.get('Label', '').split(', ', 1)
+            vet_name = label_parts[0]
+            vet_address = label_parts[1] if len(label_parts) > 1 else ''
+
+            vet_info = {
+                "id": place.get('PlaceId'), 
+                "name": vet_name,
+                "address": vet_address,
+                "longitude": place.get('Geometry', {}).get('Point', [None, None])[0],
+                "latitude": place.get('Geometry', {}).get('Point', [None, None])[1],
+                "phone": place.get('PhoneNumber')
+            }
+            if vet_info["name"]: 
+                vets.append(vet_info)
+
+        app.logger.info(f"Found {len(vets)} vets for text query '{query}'.")
+        return jsonify({"success": True, "vets": vets})
+
+    except Exception as e:
+        app.logger.error(f"An unexpected error occurred in /api/search_vets_by_text: {e}", exc_info=True)
         return jsonify({"error": "Failed to find nearby vets due to a server error."}), 500
 
 @app.route('/api/chat', methods=['POST'])
