@@ -61,6 +61,7 @@ Pet Health AI is built to scale. In the future:
 
 ## Final Thought
 Pet Health AI isn’t just a chatbot or a map.
+
 It’s a lifesaving digital companion, designed with empathy, powered by AI, and built for a world connected by high-speed networks and smarter infrastructure.
 
 Thanks to platforms like AWS, OpenAI, and the vision of the telecom sponsors in this hackathon — this project represents a future where every pet, no matter where they live, can get help fast.
