@@ -66,9 +66,9 @@ LOCATION_PLACE_INDEX_NAME = os.getenv("AWS_LOCATION_PLACE_INDEX_NAME")
 app.config['AWS_COGNITO_REGION'] = os.getenv('AWS_COGNITO_REGION') # e.g., 'us-east-1'
 app.config['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION')
 app.config['AWS_COGNITO_DOMAIN'] = os.getenv('AWS_COGNITO_DOMAIN')
-app.config['AWS_COGNITO_USER_POOL_ID'] = os.getenv('AWS_COGNITO_USER_POOL_ID') # e.g., 'us-east-1_xxxxxxxxx'
+app.config['AWS_COGNITO_USER_POOL_ID'] = os.getenv('AWS_COGNITO_USER_POOL_ID')
 # IMPORTANT: Frontend app client ID should be used here, NOT a server-side one
-app.config['AWS_COGNITO_USER_POOL_CLIENT_ID'] = os.getenv('AWS_COGNITO_USER_POOL_CLIENT_ID') # e.g., 'yyyyyyyyyyyyyyyyyyyy'
+app.config['AWS_COGNITO_USER_POOL_CLIENT_ID'] = os.getenv('AWS_COGNITO_USER_POOL_CLIENT_ID')
 app.config['AWS_COGNITO_USER_POOL_CLIENT_SECRET'] = os.getenv('AWS_COGNITO_USER_POOL_CLIENT_SECRET', '')
 app.config['AWS_COGNITO_REDIRECT_URL'] = os.getenv('AWS_COGNITO_REDIRECT_URL')
 app.config['AWS_COGNITO_CHECK_TOKEN_EXPIRATION'] = True # Recommended for security
@@ -121,7 +121,7 @@ def index_documents_endpoint():
         return jsonify({"error": "RAGService is not available due to an initialization error."}), 503
 
     data = request.json
-    # Your index_document.py uses default='../pdfs'
+    # index_document.py uses default='../pdfs'
     pdf_directory_relative = data.get('directory', '../pdfs')
     app.logger.debug(f"Received PDF directory for indexing: '{pdf_directory_relative}'") 
     
