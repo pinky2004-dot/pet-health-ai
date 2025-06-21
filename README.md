@@ -1,43 +1,66 @@
-## Inspiration
-As a pet owner, I’ve experienced the anxiety of not knowing whether my pet’s symptoms were serious or could wait. Searching online often leads to conflicting answers, and vets aren’t always available for quick advice. I realized there’s a need for a fast, intelligent, and reliable system that can help pet owners assess health situations without guessing — and support veterinarians in prioritizing real emergencies. That’s what inspired Pet Health AI.
-## What it does
-Pet Health AI is a web-based chat assistant that uses RAG (Retrieval-Augmented Generation) to:
-- Understand user-described symptoms or concerns in natural language.
-- Classify the situation as either an emergency or non-emergency.
-- If it's a non-emergency: provide trusted home remedies or actionable steps.
-- If it's an emergency: recommend immediate veterinary attention and display nearby vet clinics on a map with directions.
-- The platform is also designed to be integrated with vet clinics to streamline triage and intake in the future.
-## How we built it
-- Frontend: Built with React.js to deliver a smooth, chat-based user interface.
-- Backend: Powered by Python (Falsk) with the following components:
-- A vector database (Pinecone) to retrieve context-relevant veterinary info.
-- A RAG pipeline combining the vector retriever and OpenAI GPT for generating responses.
-- A classification module (zero-shot or fine-tuned) to determine emergency severity.
-- Mapping: Integrated Google Maps API for location detection and vet clinic display.
-## Challenges we ran into
-- Data availability: High-quality veterinary datasets are not widely available.
-- Emergency detection: It's hard to precisely classify urgency without full clinical input.
-- Accuracy vs. liability: Balancing helpfulness with responsibility is tricky in the health domain.
-- System integration: Designing a system flexible enough to work with diverse clinic workflows is a challenge for future scaling.
-## Accomplishments that we're proud of
-- Created a working demo that understands and classifies user queries effectively.
-- Successfully integrated a geolocation-based vet locator with real-time mapping.
-- Developed a pipeline combining RAG and classification logic tailored for pet health.
-- Initiated conversations with veterinarians to validate real-world applications and clinic integration.
-## What we learned
-- Created a working demo that understands and classifies user queries effectively.
-- Successfully integrated a geolocation-based vet locator with real-time mapping.
-- Developed a pipeline combining RAG and classification logic tailored for pet health.
-- Initiated conversations with veterinarians to validate real-world applications and clinic integration.
-## What's next for Pet Health AI
-- ✅ Clinic Integration: Connect with veterinary clinics for real-time triage, intake, and appointment scheduling.
-- 📱 Mobile App Launch: Enable pet owners to use the platform on-the-go with real-time alerts and updates.
-- 🐕 Multi-Species Support: Expand knowledge to include exotic pets, livestock, and more.
-- 🗺️ Global Vet Network: Build a database of 24/7 vet clinics with live availability and emergency contacts.
-- 📊 Veterinary Dashboard: Offer clinics a dashboard to track trends, common symptoms, and patient histories.
-- 🔐 Data Privacy & Compliance: Ensure all personal and health data is secure, encrypted, and privacy-compliant.
-- 📡 IoT Device Integration (Future Phase):
-     - Integrate with wearables or smart collars to monitor vitals like heart rate, temperature, activity, and GPS.
-     - Trigger real-time alerts to owners and clinics if abnormal patterns are detected.
-     - Use IoT data to augment the AI triage model with real physiological indicators.
-     - Create a connected pet health ecosystem, where AI + sensor data work together for proactive care.
+## 🐾 Pet Health AI: Smarter, Faster Veterinary Triage for Every Pet Owner
+Across the world, pet owners face a difficult challenge — knowing when something is truly wrong. Is it an emergency or not? Is a vet visit urgent, or can it wait? The difference between hesitation and immediate care can be life or death for a pet — but many hesitate because of cost, access, or uncertainty.
+
+That’s why **Pet Health AI** was created:
+A smart, AI-powered veterinary triage assistant that helps users identify pet emergencies in real time — from their phone or computer — and immediately connects them with nearby help.
+
+## How It Works
+**AI-Powered Visual Diagnosis**
+
+Users can upload an image (e.g., a dog’s skin rash) and type in a concern like “What is this on my dog’s skin?”
+Behind the scenes, the image is processed using a custom-trained SageMaker model deployed to an endpoint. The model was trained on a dataset of annotated veterinary skin conditions. The result: an intelligent, medical-grade explanation and next steps — no guesswork.
+
+**Smart Urgency Detection**
+
+If the user types something more severe — like “my dog is vomiting and shivering” — the app uses Amazon Bedrock for urgency classification. The message is instantly triaged into four levels: urgent, non-urgent, uncertain, or general.
+If urgent, the user is automatically redirected to the Emergency Page, where they can:
+
+- View a live map (powered by AWS Location Services)
+
+- See verified nearby vet clinics
+
+- Use a built-in search bar to find clinics based on specialty or hours
+
+**Seamless User Experience**
+
+User authentication is powered by AWS Cognito, ensuring secure sign-up and login flows. Once signed in, users have a clean dashboard experience with real-time, context-aware support. All interactions are backed by OpenAI’s GPT for natural, reliable communication, and Pinecone enables fast, relevant retrieval of veterinary documents and contextual information via a RAG pipeline.
+
+## Why Telecom and 5G Matter
+This isn’t just a web app — it’s the foundation for a connected, real-time pet health platform, especially in moments of crisis:
+
+- In the future, Pet Health AI will integrate with wearables and IoT pet collars to monitor vitals like temperature, heart rate, or unusual movements.
+These data streams will be analyzed at the edge and prioritized in real time thanks to low-latency 5G connectivity, allowing for immediate triage without the user lifting a finger.
+
+- When every second counts — like identifying internal bleeding or poisoning — uploading a photo or video over 5G ensures ultra-fast emergency recognition and immediate care guidance.
+
+- For pet owners in remote areas or underserved communities, this system can be adapted to run offline-first with edge models, reducing dependence on connectivity and bringing advanced pet care to places where it’s needed most.
+
+## AI for Social Good: Making Pet Healthcare More Equitable
+Veterinary care is expensive, often costing hundreds of dollars just for a consultation. Many pet owners — especially in rural areas or low-income communities — simply don’t have access to fast, affordable triage.
+
+Pet Health AI changes that.
+
+- It provides free or low-cost guidance, using AI to reduce unnecessary vet visits.
+
+- It empowers owners to act sooner with confidence.
+
+- And by providing real-time emergency routing and access to clinics, it can save lives while cutting costs.
+
+In regions with less veterinary infrastructure — such as areas served by Safaricom or Fastweb — the app could become a first line of defense for pet health, long before traditional care is reachable.
+
+## What’s Next
+Pet Health AI is built to scale. In the future:
+
+- Mobile app versions with camera, voice, and wearable integrations.
+
+- Real-time video analysis of injuries and symptoms.
+
+- IoT collars to alert owners before visible symptoms even appear.
+
+- Offline and edge AI deployments to serve disconnected regions.
+
+## Final Thought
+Pet Health AI isn’t just a chatbot or a map.
+It’s a lifesaving digital companion, designed with empathy, powered by AI, and built for a world connected by high-speed networks and smarter infrastructure.
+
+Thanks to platforms like AWS, OpenAI, and the vision of the telecom sponsors in this hackathon — this project represents a future where every pet, no matter where they live, can get help fast.
