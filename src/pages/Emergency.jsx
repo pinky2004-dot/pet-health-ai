@@ -1,4 +1,3 @@
-// src/pages/Emergency.jsx
 import React, { useState, useEffect, useRef } from 'react'; // Added useRef
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MapPin, Phone, AlertTriangle, ChevronLeft, Bot, Map } from 'lucide-react'; // Added Map icon
@@ -7,20 +6,16 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-// This assumes your Leaflet images are accessible.
-// If markers don't appear, you might need to adjust paths or how your bundler handles these assets.
-// Example: import markerIcon from 'leaflet/dist/images/marker-icon.png';
-// L.Icon.Default.mergeOptions({ iconUrl: markerIcon, ... });
 
-// Fix for default Leaflet marker icon issue with Webpack/React (ensure paths are correct for your setup)
+// Fix for default Leaflet marker icon issue with Webpack/React
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png', // Use unpkg CDN for reliability
-    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png', // Use unpkg CDN for reliability
-    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png', // Use unpkg CDN for reliability
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-const API_FIND_VETS_URL = "http://localhost:5000/api/find_vets"; // Your Flask backend endpoint
+const API_FIND_VETS_URL = "http://localhost:5000/api/find_vets"; // flask backend endpoint
 
 // Small component to recenter the map when vets are found
 function ChangeMapView({ coords }) {
@@ -114,7 +109,7 @@ function EmergencyPage() {
             let displayError = error.message;
             if (error.name === 'NotSignedInException' || error.message.includes('not authenticated')) {
                  displayError = "You are not logged in or your session has expired. Please log in again.";
-                 // Optionally redirect to login here if you want to be extra strict
+                 // Optionally redirect to login here if need to be extra strict
                  // navigate('/auth', { replace: true });
             }
             setLocationError(displayError);
